@@ -24,7 +24,8 @@ let shapes = [
         ],
         color: "blue",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 1
     },
     {
         coords:
@@ -35,7 +36,8 @@ let shapes = [
         ,
         color: "brown",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 2
     },
     {
         coords:
@@ -47,7 +49,8 @@ let shapes = [
         ,
         color: "orange",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 3
     },
     {
         coords: [
@@ -56,7 +59,8 @@ let shapes = [
         ],
         color: "green",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 4
     },
     {
         coords: [
@@ -65,7 +69,9 @@ let shapes = [
         ],
         color: "purple",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 3
+        
     },
     {
         coords: [
@@ -75,7 +81,8 @@ let shapes = [
         ],
         color: "red",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 4
     },
     {
         coords: [
@@ -85,7 +92,8 @@ let shapes = [
         ],
         color: "cyan",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 4
     },
     {
         coords: [
@@ -95,7 +103,8 @@ let shapes = [
         ],
         color: "yellow",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 4
     },
     {
         coords: [
@@ -106,7 +115,8 @@ let shapes = [
         ],
         color: "grey",
         highlighted: false,
-        onBoard: false
+        onBoard: false,
+        numSquares: 4
     },
 ];
 
@@ -147,25 +157,63 @@ function removeSelectedPreview() {
     })
 }
 
+let lastX, lastY;
+
 canvas.addEventListener("mousemove", (e) => {
     if (!selectedShape) {
         return;
     }
-    console.log("e", e);
-    console.log(selectedShape)
     const x = Math.floor(e.clientX / blockSize) * blockSize;
     const y = Math.floor(e.clientY / blockSize) * blockSize;
+    if (lastX === x && lastY === y) {
+        return;
+    }
+    console.log("************************")
+    lastX = x;
+    lastY = y;
     const hoverOverBoard = Math.floor(e.clientX / blockSize) < 6 && Math.floor(e.clientY / blockSize) < 6;
     if (hoverOverBoard && selectedShape) {
         removeSelectedPreview()
         let boardSquare = board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)];
         if (boardSquare !== null) {
             removeSelectedPreview()
-            console.log("already blocked!", board)
             reDrawGame()
             return;
         }
-        board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)] = selectedShape.color;
+        // board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)] = selectedShape.color;
+        let cancelDraw;
+        let squaresToDraw = [];
+        let shapeCoordI = 0;
+        board.forEach((row, i) => {
+            if (i >= y / blockSize && i <= y / blockSize + selectedShape.coords.length - 1) {
+                let shapeCoordJ = 0;
+                for (let j = x / blockSize; j < x / blockSize + selectedShape.coords.length; j++) {
+                    if (selectedShape.coords.length === 1) {
+                        board[i][j] = selectedShape.color;
+                        break;
+                    }
+                    console.log( shapeCoordI, shapeCoordJ, selectedShape.coords)
+                    console.table(selectedShape.coords)
+                    if (selectedShape.coords[shapeCoordI][shapeCoordJ] === 1) {
+                        if (board[i][j] !== null) {
+                            cancelDraw = true;
+                        }
+                        squaresToDraw.push([i, j])
+                    }
+                    shapeCoordJ++
+                }
+                shapeCoordI++
+            }
+        })
+        // console.table(board);
+        console.log("squaresToDraw: ", squaresToDraw, "cancelDraw: ", cancelDraw)
+        if (!cancelDraw && selectedShape.numSquares === squaresToDraw.length) {
+            squaresToDraw.forEach((coord) => {
+                console.log("DRAWING!", coord[0] * blockSize, coord[1] * blockSize, selectedShape.color)
+                board[coord[0]][coord[1]] = selectedShape.color
+            });
+        }
+        cancelDraw = false;
         reDrawGame()
     } else {
         removeSelectedPreview()
@@ -176,12 +224,12 @@ canvas.addEventListener("mousemove", (e) => {
 function reDrawGame() {
     ctx.clearRect(0, 0, 1000, 1000);
     drawBoard();
-    drawBlockers();
     drawShapes();
+    drawBlockers();
 }
 
 canvas.addEventListener("mousedown", (e) => {
-    console.log("click!", e);
+    console.log("mousedown!", e);
     const x = Math.floor(e.clientX / blockSize) * blockSize;
     const y = Math.floor(e.clientY / blockSize) * blockSize;
     shapes = shapes.map(shape => {
@@ -200,28 +248,52 @@ canvas.addEventListener("mousedown", (e) => {
         selectedShape = shapeFound
     }
     console.log("selectedShape: ", selectedShape)
-    if (Math.floor(e.clientX / blockSize) < 6 && Math.floor(e.clientY / blockSize) < 6 && selectedShape) {
+    const onBoard = Math.floor(e.clientX / blockSize) < 6 && Math.floor(e.clientY / blockSize) < 6
+    if (onBoard) {
         let boardSquare = board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)];
         if (boardSquare === 0) {
             console.log("already blocked!")
             return;
         }
-        console.log("add to board!")
-        // need to figure out how to draw more than a square
-        board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)] = selectedShape.color;
-        selectedShape.onBoard = true;
-        shapes = shapes.map(shape => {
-            if (selectedShape.color === shape.color) {
-                return {
-                    ...shape,
-                    onBoard: true
+        
+        if (selectedShape) {
+            console.log("add to board!")
+            // need to figure out how to draw more than a square
+            board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)] = selectedShape.color;
+            selectedShape.onBoard = true;
+            shapes = shapes.map(shape => {
+                if (selectedShape.color === shape.color) {
+                    return {
+                        ...shape,
+                        onBoard: true
+                    }
+                } else {
+                    return shape;
                 }
-            } else {
-                return shape;
-            }
-        })
-        console.table(board);
-        selectedShape = null;
+            })
+            console.table(board);
+            selectedShape = null;
+        } else if (boardSquare !== null) {
+            console.log("remove shape!", boardSquare);
+            shapes = shapes.map(shape => {
+                if (shape.color === boardSquare) {
+                    return {
+                        ...shape,
+                        onBoard:false
+                    }
+                } else {
+                    return shape
+                }
+            })
+            board.forEach((row, i) => {
+                row.forEach((square, j) => {
+                    if (square === boardSquare) {
+                        board[i][j] = null;
+                    }
+                })
+            })
+        }
+        
 
     }
 
@@ -237,7 +309,7 @@ function drawBoard() {
         for (let j = 0; j < 6; j++) {
             drawBlockOutline(i * blockSize, j * blockSize, blockSize, "black")
             if (board[i][j] !== null && board[i][j] !== 0) {
-                drawBlock(j * blockSize, i * blockSize, board[i][j]) 
+                drawBlock(j * blockSize, i * blockSize, board[i][j])
             }
         }
     }
@@ -303,14 +375,14 @@ function drawBlockOutline(x, y, size, color) {
 }
 
 function rotateClockwise(a) {
-    var n=a.length;
-    for (var i=0; i<n/2; i++) {
-        for (var j=i; j<n-i-1; j++) {
-            var tmp=a[i][j];
-            a[i][j]=a[n-j-1][i];
-            a[n-j-1][i]=a[n-i-1][n-j-1];
-            a[n-i-1][n-j-1]=a[j][n-i-1];
-            a[j][n-i-1]=tmp;
+    var n = a.length;
+    for (var i = 0; i < n / 2; i++) {
+        for (var j = i; j < n - i - 1; j++) {
+            var tmp = a[i][j];
+            a[i][j] = a[n - j - 1][i];
+            a[n - j - 1][i] = a[n - i - 1][n - j - 1];
+            a[n - i - 1][n - j - 1] = a[j][n - i - 1];
+            a[j][n - i - 1] = tmp;
         }
     }
     return a;
