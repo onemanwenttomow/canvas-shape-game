@@ -71,7 +71,7 @@ let shapes = [
         highlighted: false,
         onBoard: false,
         numSquares: 3
-        
+
     },
     {
         coords: [
@@ -123,143 +123,78 @@ let shapes = [
 
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
-const blockSize = 50;
+const blockSize = 35;
 const blockedSquares = rollDice();
-let selectedShape;
+let selectedShape, lastX, lastY;
 
 
-reDrawGame()
+drawGame();
 
 document.addEventListener("keydown", (e) => {
     if (e.key !== "r") {
         return;
     }
-    console.log(shapes)
     const shapeSelected = shapes.find(shape => shape.highlighted);
     if (!shapeSelected) {
         return;
     }
-    console.log(shapeSelected)
-    console.log("rotate!")
-    console.log(shapeSelected.coords);
     const newCoords = rotateClockwise(shapeSelected.coords);
     shapeSelected.coords = newCoords;
-    reDrawGame()
+    removeSelectedPreview();
+    createPreview(lastX, lastY);
+    drawGame()
 });
 
-function removeSelectedPreview() {
-    board.forEach((row, i) => {
-        row.forEach((square, j) => {
-            if (square === selectedShape.color) {
-                board[i][j] = null;
-            }
-        })
-    })
-}
-
-let lastX, lastY;
 
 canvas.addEventListener("mousemove", (e) => {
     if (!selectedShape) {
         return;
     }
-    const x = Math.floor(e.clientX / blockSize) * blockSize;
-    const y = Math.floor(e.clientY / blockSize) * blockSize;
+    const x = Math.floor(e.offsetX / blockSize) * blockSize;
+    const y = Math.floor(e.offsetY / blockSize) * blockSize;
     if (lastX === x && lastY === y) {
         return;
     }
-    console.log("************************")
     lastX = x;
     lastY = y;
-    const hoverOverBoard = Math.floor(e.clientX / blockSize) < 6 && Math.floor(e.clientY / blockSize) < 6;
+    const hoverOverBoard = Math.floor(e.offsetX / blockSize) < 6 && Math.floor(e.offsetY / blockSize) < 6;
     if (hoverOverBoard && selectedShape) {
-        removeSelectedPreview()
-        let boardSquare = board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)];
-        if (boardSquare !== null) {
-            removeSelectedPreview()
-            reDrawGame()
-            return;
-        }
-        // board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)] = selectedShape.color;
-        let cancelDraw;
-        let squaresToDraw = [];
-        let shapeCoordI = 0;
-        board.forEach((row, i) => {
-            if (i >= y / blockSize && i <= y / blockSize + selectedShape.coords.length - 1) {
-                let shapeCoordJ = 0;
-                for (let j = x / blockSize; j < x / blockSize + selectedShape.coords.length; j++) {
-                    if (selectedShape.coords.length === 1) {
-                        board[i][j] = selectedShape.color;
-                        break;
-                    }
-                    console.log( shapeCoordI, shapeCoordJ, selectedShape.coords)
-                    console.table(selectedShape.coords)
-                    if (selectedShape.coords[shapeCoordI][shapeCoordJ] === 1) {
-                        if (board[i][j] !== null) {
-                            cancelDraw = true;
-                        }
-                        squaresToDraw.push([i, j])
-                    }
-                    shapeCoordJ++
-                }
-                shapeCoordI++
-            }
-        })
-        // console.table(board);
-        console.log("squaresToDraw: ", squaresToDraw, "cancelDraw: ", cancelDraw)
-        if (!cancelDraw && selectedShape.numSquares === squaresToDraw.length) {
-            squaresToDraw.forEach((coord) => {
-                console.log("DRAWING!", coord[0] * blockSize, coord[1] * blockSize, selectedShape.color)
-                board[coord[0]][coord[1]] = selectedShape.color
-            });
-        }
-        cancelDraw = false;
-        reDrawGame()
+        removeSelectedPreview();
+        createPreview(x, y);
+        drawGame();
     } else {
-        removeSelectedPreview()
-        reDrawGame()
+        removeSelectedPreview();
+        drawGame();
     }
 });
 
-function reDrawGame() {
-    ctx.clearRect(0, 0, 1000, 1000);
-    drawBoard();
-    drawShapes();
-    drawBlockers();
-}
-
 canvas.addEventListener("mousedown", (e) => {
     console.log("mousedown!", e);
-    const x = Math.floor(e.clientX / blockSize) * blockSize;
-    const y = Math.floor(e.clientY / blockSize) * blockSize;
+    const x = Math.floor(e.offsetX / blockSize) * blockSize;
+    const y = Math.floor(e.offsetY / blockSize) * blockSize;
     shapes = shapes.map(shape => {
         return {
             ...shape,
             highlighted: false
         }
     })
-    const shapeFound = shapes.find(shape => {
-        const inRangeX = x >= shape.x && x <= shape.x + (shape.coords.length - 1) * blockSize;
-        const inRangeY = y >= shape.y && y <= shape.y + (shape.coords.length - 1) * blockSize;
-        return inRangeX && inRangeY && !shape.onBoard;
-    });
+    const shapeFound = findShape(x, y);
     if (shapeFound) {
         shapeFound.highlighted = true;
         selectedShape = shapeFound
     }
-    console.log("selectedShape: ", selectedShape)
-    const onBoard = Math.floor(e.clientX / blockSize) < 6 && Math.floor(e.clientY / blockSize) < 6
+    const onBoard = Math.floor(e.offsetX / blockSize) < 6 && Math.floor(e.offsetY / blockSize) < 6
     if (onBoard) {
-        let boardSquare = board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)];
-        if (boardSquare === 0) {
-            console.log("already blocked!")
-            return;
+        let boardSquare = board[Math.floor(e.offsetY / blockSize)][Math.floor(e.offsetX / blockSize)];
+        if (!selectedShape && boardSquare !== null && boardSquare !== 0) {
+            removeShapeFromBoard(boardSquare)
         }
-        
+     
         if (selectedShape) {
-            console.log("add to board!")
-            // need to figure out how to draw more than a square
-            board[Math.floor(e.clientY / blockSize)][Math.floor(e.clientX / blockSize)] = selectedShape.color;
+            const previewOnBoard = board.slice().flat().includes(selectedShape.color);
+            if (!previewOnBoard) {
+                return;
+            }
             selectedShape.onBoard = true;
             shapes = shapes.map(shape => {
                 if (selectedShape.color === shape.color) {
@@ -273,36 +208,88 @@ canvas.addEventListener("mousedown", (e) => {
             })
             console.table(board);
             selectedShape = null;
-        } else if (boardSquare !== null) {
-            console.log("remove shape!", boardSquare);
-            shapes = shapes.map(shape => {
-                if (shape.color === boardSquare) {
-                    return {
-                        ...shape,
-                        onBoard:false
-                    }
-                } else {
-                    return shape
-                }
-            })
-            board.forEach((row, i) => {
-                row.forEach((square, j) => {
-                    if (square === boardSquare) {
-                        board[i][j] = null;
-                    }
-                })
-            })
-        }
-        
-
+        } 
     }
+    drawGame()
+});
 
-    console.table(shapes)
+function removeShapeFromBoard(boardSquare) {
+    shapes = shapes.map(shape => {
+        if (shape.color === boardSquare) {
+            return {
+                ...shape,
+                onBoard: false
+            }
+        } else {
+            return shape
+        }
+    })
+    board.forEach((row, i) => {
+        row.forEach((square, j) => {
+            if (square === boardSquare) {
+                board[i][j] = null;
+            }
+        })
+    })
+}
+
+function drawGame() {
     ctx.clearRect(0, 0, 1000, 1000);
     drawBoard();
-    drawBlockers();
     drawShapes();
-})
+    drawBlockers();
+}
+
+function removeSelectedPreview() {
+    board.forEach((row, i) => {
+        row.forEach((square, j) => {
+            if (square === selectedShape.color) {
+                board[i][j] = null;
+            }
+        })
+    })
+}
+
+function createPreview(x, y) {
+    let cancelDraw;
+    let squaresToDraw = [];
+    let shapeCoordI = 0;
+    const sizeOfShape = selectedShape.coords.length;
+    board.forEach((row, i) => {
+        if (i >= y / blockSize && i < y / blockSize + sizeOfShape) {
+            let shapeCoordJ = 0;
+            for (let j = x / blockSize; j < x / blockSize + sizeOfShape; j++) {
+                if (sizeOfShape === 1 && board[i][j] === null) {
+                    board[i][j] = selectedShape.color;
+                    break;
+                }
+                if (selectedShape.coords[shapeCoordI][shapeCoordJ] === 1) {
+                    if (board[i][j] !== null) {
+                        cancelDraw = true;
+                    }
+                    squaresToDraw.push([i, j])
+                }
+                shapeCoordJ++
+            }
+            shapeCoordI++
+        }
+    })
+    if (!cancelDraw && selectedShape.numSquares === squaresToDraw.length) {
+        squaresToDraw.forEach((coord) => {
+            board[coord[0]][coord[1]] = selectedShape.color
+        });
+    }
+    console.table(board)
+    cancelDraw = false;
+}
+
+function findShape(x, y) {
+    return shapes.find(shape => {
+        const inRangeX = x >= shape.x && x <= shape.x + (shape.coords.length - 1) * blockSize;
+        const inRangeY = y >= shape.y && y <= shape.y + (shape.coords.length - 1) * blockSize;
+        return inRangeX && inRangeY && !shape.onBoard;
+    });
+}
 
 function drawBoard() {
     for (let i = 0; i < 6; i++) {
@@ -322,8 +309,6 @@ function drawBlockers() {
         drawBlock(x * blockSize, y * blockSize, shape.color || "black");
     });
 }
-
-console.log(board)
 
 function drawShapes() {
     let x = 7 * blockSize;
